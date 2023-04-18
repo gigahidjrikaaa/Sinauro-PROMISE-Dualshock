@@ -46,8 +46,8 @@ void loop() {
   if(resetButton.isPressed())
   {
     Serial.println("=========== FLASH MEMORY RESET ===========");
-    removeFlashMemory();
     digitalWrite(buzzerPin, HIGH);
+    removeFlashMemory();
     delay(2000);
     digitalWrite(buzzerPin, LOW);
   }
@@ -220,16 +220,18 @@ void printInfo()
       }
       Serial.println();
     }
+    printTime = millis();
   }
 }
 
 unsigned long int printSpeedTime;
 void printSpeed()
 {
-  if(millis() - printSpeedTime >= 1000)
+  if(millis() - printSpeedTime >= 200)
   {
     Serial.printf("%d\tSpeed1: %d\tSpeed2: %d\tRev1: %d\tRev2: %d\n", millis(), speed[0], speed[1], revState[0], revState[1]);
-  }
+    printSpeedTime = millis();
+  } 
 }
 
 void motorWrite()

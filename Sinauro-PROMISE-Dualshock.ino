@@ -19,16 +19,38 @@ char bda_str[18];
 const int motorPinFwd[2] = {5, 13};
 const int reversePin[2] = {12, 23};
 const int resetFlashPin = 18;
+const int resetESPin = 14;
 const int buzzerPin = 19;
+const int greenLight = 2;
+const int yellowLight = 2;
+const int redLight = 2;
 bool revState[2] = {0, 0};
 int speed[2] = {0, 0};
+bool reset = 0;
 
 ezButton resetButton(resetFlashPin);
+
+// Interrupt service routine to reset the ESP32
+void IRAM_ATTR resetModule() {
+  Serial.println("Resetting module...");
+  for (int i = 0; i < 5; i++)
+  {
+    digitalWrite(buzzerPin, HIGH);
+    delay(200);
+    digitalWrite(buzzerPin, LOW);
+    delay(200);
+  }
+  esp_restart();
+}
+
 void setup() {
 
   Serial.begin(115200);
 
   resetButton.setDebounceTime(50);
+
+  // attach the interrupt to the reset button when it is pressed
+  attachInterrupt(digitalPinToInterrupt(resetESPin), resetModule, FALLING);
 
   // Replace the "1a:2b:3c:01:01:01" with the MAC address of the laptop
   PS4.begin("50:84:92:81:b7:a7");
@@ -39,17 +61,24 @@ void setup() {
     pinMode(motorPinFwd[i], OUTPUT);
     pinMode(reversePin[i], OUTPUT);
   }
+  pinMode(redLight, OUTPUT);
+  pinMode(greenLight, OUTPUT);
+  pinMode(yellowLight, OUTPUT);
 }
 
 void loop() {
   resetButton.loop();
-  if(resetButton.isPressed())
+  if(resetButton.isPressed() && !reset)
   {
     Serial.println("=========== FLASH MEMORY RESET ===========");
     digitalWrite(buzzerPin, HIGH);
     removeFlashMemory();
     delay(2000);
     digitalWrite(buzzerPin, LOW);
+    reset = true;
+  } else if(!resetButton.isPressed() && reset)
+  {
+    reset = false;
   }
 
   if (PS4.isConnected()) {
@@ -59,7 +88,11 @@ void loop() {
     if (PS4.Left()) Serial.println("Left Button");
 
     if (PS4.Square()) Serial.println("Square Button");
-    if (PS4.Cross()) Serial.println("Cross Button");
+    if (PS4.Cross()){
+      digitalWrite(buzzerPin, HIGH);
+    } else{
+      digitalWrite(buzzerPin, LOW);
+    }
     if (PS4.Circle()) Serial.println("Circle Button");
     if (PS4.Triangle()) Serial.println("Triangle Button");
 
@@ -70,13 +103,9 @@ void loop() {
 
     if (PS4.L1())
     {
-      revState[0] = !revState[0];
-      digitalWrite(reversePin[0], revState[0]);
     }
     if (PS4.R1())
     {
-      revState[1] = !revState[1];
-      digitalWrite(reversePin[1], revState[1]);
     }
 
     if (PS4.Share()) Serial.println("Share Button");
@@ -94,18 +123,6 @@ void loop() {
       
     }
 
-    if (PS4.LStickX()) {
-      
-    }
-    if (PS4.LStickY()) {
-      
-    }
-    if (PS4.RStickX()) {
-
-    }
-    if (PS4.RStickY()) {
-      
-    }
     updateSpeed();
     printSpeed();
   }
@@ -122,11 +139,11 @@ void updateSpeed()
 {
   for(int i = 0; i < 2; i++)
   {
-    speed[i] = PS4.LStickY()*1.5;
+    speed[i] = PS4.LStickY() * 1.5 + 0.25 * PS4.R2Value() - 0,25 * PS4.L2Value();
     if(i % 2 == 0)
-      speed[i] -= PS4.RStickX() * 0.5;
+      speed[i] -= PS4.RStickX() * 0.5 - PS4.Right() * 255 + PS4.Left() * 255 - PS4.Up() * 255 + PS4.Down() * 255;
     else if(i % 2 == 1)
-      speed[i] += PS4.RStickX() * 0.5;
+      speed[i] += PS4.RStickX() * 0.5 - PS4.Right() * 255 + PS4.Left() * 255 + PS4.Up() * 255 - PS4.Down() * 255;
 
     if(speed[i] > 255)
       speed[i] = 255;
